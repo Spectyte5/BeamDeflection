@@ -116,8 +116,15 @@ while True:
         print("Error capturing frame")
         break
     
+    h,  w = oldframe.shape[:2]
+    newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(cameraMatrix, dist, (w,h), 1, (w,h))
+
     # Undistort the frame using cv2.undistort
-    frame = cv2.undistort(oldframe, cameraMatrix, dist, None)
+    dst = cv2.undistort(oldframe, cameraMatrix, dist, None, newCameraMatrix)
+
+    # crop the image
+    x, y, w, h = roi
+    frame = dst[y:y+h, x:x+w]
 
     if selecting_color:
         cv2.putText(frame, "Select color by clicking:", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
@@ -151,8 +158,8 @@ while True:
                 else:
                     # Get current position, mark it and then connect to initial with a line
                     current_position = (cx, cy)
-                    cv2.circle(frame, initial_position, 5, (0, 0, 255), -1) 
-                    cv2.line(frame, initial_position, current_position, (0, 0, 255), 2)
+                    cv2.circle(frame, initial_position, 5, (255, 255, 0), -1) 
+                    cv2.line(frame, initial_position, current_position, (255, 255, 0), 2)
 
                     # Get deflection value for x and y in pixels
                     deflection_x_pixels = current_position[0] - initial_position[0]
@@ -175,7 +182,7 @@ while True:
                     midpoint = ((initial_position[0] + current_position[0]) // 2, (initial_position[1] + current_position[1]) // 2)
                     # Put deflection text on the midpoint
                     deflection_text = f"Deflection: {deflection_mm:.2f} mm"
-                    cv2.putText(frame, deflection_text, (midpoint[0] + 10, midpoint[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 255), 2)
+                    cv2.putText(frame, deflection_text, (midpoint[0] + 10, midpoint[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 0), 2)
     
     # Show result
     cv2.imshow('Marker Detection', frame)
