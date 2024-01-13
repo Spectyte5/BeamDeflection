@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import pickle
 from fenics import *
 import matplotlib.pyplot as plt
 
@@ -88,10 +89,14 @@ def select_color(event, x, y, flags, param):
         else:
             reset_color_selection()
 
+# Load the calibration parameters
+with open("CameraCalibration/calibration.pkl", "rb") as f:
+    cameraMatrix, dist = pickle.load(f)
+
 # Capture video using the camera
 cap = cv2.VideoCapture(0)
 initial_position = None  
-known_width_mm = 22
+known_width_mm = 32
 selecting_color = True
 
 # Initialize lower and upper bounds
@@ -104,7 +109,15 @@ cv2.setMouseCallback('Marker Detection', select_color)
 
 while True:
     # Read frames
-    ret, frame = cap.read()
+    ret, oldframe = cap.read()
+    
+    # Check if the frame is captured successfully
+    if not ret:
+        print("Error capturing frame")
+        break
+    
+    # Undistort the frame using cv2.undistort
+    frame = cv2.undistort(oldframe, cameraMatrix, dist, None)
 
     if selecting_color:
         cv2.putText(frame, "Select color by clicking:", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
@@ -121,6 +134,7 @@ while True:
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
             x, y, w, h = cv2.boundingRect(largest_contour)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), color=(255,0,0), thickness=2)
             M = cv2.moments(largest_contour)
 
             # Find center of the contour
@@ -140,15 +154,23 @@ while True:
                     cv2.circle(frame, initial_position, 5, (0, 0, 255), -1) 
                     cv2.line(frame, initial_position, current_position, (0, 0, 255), 2)
 
-                    # Get deflection value in pixels - NOTE: should it be only Y?
-                    deflection_pixels = np.sqrt((current_position[0] - initial_position[0]) ** 2 +
-                                                (current_position[1] - initial_position[1]) ** 2)
+                    # Get deflection value for x and y in pixels
+                    deflection_x_pixels = current_position[0] - initial_position[0]
+                    deflection_y_pixels = current_position[1] - initial_position[1]
+
+                    # Calculate total deflection in pixels
+                    deflection_pixels = np.sqrt(deflection_x_pixels ** 2 + deflection_y_pixels ** 2)
 
                     # Calculate pixel per mm on the image
                     pixels_per_mm = known_width_pixels / known_width_mm
 
-                    # Remap pixel -> mm
+                    # Remap pixel -> mm for x and y 
+                    deflection_x_mm = deflection_x_pixels / pixels_per_mm
+                    deflection_y_mm = deflection_y_pixels / pixels_per_mm
+
+                    # Remap pixel -> mm for total
                     deflection_mm = deflection_pixels / pixels_per_mm
+
                     # Find midpoint of the line
                     midpoint = ((initial_position[0] + current_position[0]) // 2, (initial_position[1] + current_position[1]) // 2)
                     # Put deflection text on the midpoint
@@ -162,7 +184,20 @@ while True:
     if key == ord('q'): # Quit on Q button press
         break
     if key == ord('f'): # Fem on F button press
-        calculate_fem(deflection_mm)
+        if not selecting_color:
+            calculate_fem(deflection_mm)
+        else:
+            print("Object was not picked!")
+    if key == ord('c'): # Check camera calibration o C press
+        cv2.imshow('Original', oldframe) # Orginal frame
+        cv2.imshow('Undistorted', frame) # Removed distortion frame
+    if key == ord('p'): # Print X, Y, Mag of deflection in terminal on P press
+        if not selecting_color:
+            print(f"Deflection x: {deflection_x_mm:.2f} mm")
+            print(f"Deflection y: {deflection_y_mm:.2f} mm")
+            print(f"Deflection mag: {deflection_mm:.2f} mm") 
+        else:
+            print("Object was not picked!")        
 
 # Cleanup routine
 cap.release()
