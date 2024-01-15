@@ -96,7 +96,7 @@ with open("CameraCalibration/calibration.pkl", "rb") as f:
 # Capture video using the camera
 cap = cv2.VideoCapture(0)
 initial_position = None  
-known_width_mm = 32
+known_width_mm, known_height_mm = 32, 30
 selecting_color = True
 
 # Initialize lower and upper bounds
@@ -140,49 +140,43 @@ while True:
         # Find and show, largest contour found
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
+
             x, y, w, h = cv2.boundingRect(largest_contour)
             cv2.rectangle(frame, (x, y), (x + w, y + h), color=(255,0,0), thickness=2)
-            M = cv2.moments(largest_contour)
 
-            # Find center of the contour
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])  
-                cy = int(M["m01"] / M["m00"]) 
+            # Center of the contour
+            cx = x + w // 2
+            cy = y + h // 2
 
-                cv2.circle(frame, (cx, cy), 5, (0, 255, 0), -1)
+            cv2.circle(frame, (cx, cy), 5, (0, 255, 0), -1)
 
-                # Set initial position only on first loop
-                if initial_position is None:
-                    initial_position = (cx, cy)
-                    known_width_pixels = w 
-                else:
-                    # Get current position, mark it and then connect to initial with a line
-                    current_position = (cx, cy)
-                    cv2.circle(frame, initial_position, 5, (255, 255, 0), -1) 
-                    cv2.line(frame, initial_position, current_position, (255, 255, 0), 2)
+            # Set initial position only on first loop
+            if initial_position is None:
+                initial_position = (cx, cy)
+                known_width_pixels = w 
+                known_height_pixels = h
+            else:
+                # Get current position, mark it and then connect to initial with a line
+                current_position = (cx, cy)
+                cv2.circle(frame, initial_position, 5, (255, 255, 0), -1) 
+                cv2.line(frame, initial_position, current_position, (255, 255, 0), 2)
 
-                    # Get deflection value for x and y in pixels
-                    deflection_x_pixels = current_position[0] - initial_position[0]
-                    deflection_y_pixels = current_position[1] - initial_position[1]
+                # Get deflection value for x and y in pixels
+                deflection_x_pixels = current_position[0] - initial_position[0]
+                deflection_y_pixels = current_position[1] - initial_position[1]
 
-                    # Calculate total deflection in pixels
-                    deflection_pixels = np.sqrt(deflection_x_pixels ** 2 + deflection_y_pixels ** 2)
+                # Remap pixel -> mm for x and y, knowing pixel per mm
+                deflection_x_mm = deflection_x_pixels * (known_width_mm / known_width_pixels)
+                deflection_y_mm = deflection_y_pixels * (known_height_mm / known_height_pixels)
 
-                    # Calculate pixel per mm on the image
-                    pixels_per_mm = known_width_pixels / known_width_mm
+                # Calculate total deflection
+                deflection_mm = np.sqrt(deflection_x_mm ** 2 + deflection_y_mm ** 2)
 
-                    # Remap pixel -> mm for x and y 
-                    deflection_x_mm = deflection_x_pixels / pixels_per_mm
-                    deflection_y_mm = deflection_y_pixels / pixels_per_mm
-
-                    # Remap pixel -> mm for total
-                    deflection_mm = deflection_pixels / pixels_per_mm
-
-                    # Find midpoint of the line
-                    midpoint = ((initial_position[0] + current_position[0]) // 2, (initial_position[1] + current_position[1]) // 2)
-                    # Put deflection text on the midpoint
-                    deflection_text = f"Deflection: {deflection_mm:.2f} mm"
-                    cv2.putText(frame, deflection_text, (midpoint[0] + 10, midpoint[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 0), 2)
+                # Find midpoint of the line
+                midpoint = ((initial_position[0] + current_position[0]) // 2, (initial_position[1] + current_position[1]) // 2)
+                # Put deflection text on the midpoint
+                deflection_text = f"Deflection: {deflection_mm:.2f} mm"
+                cv2.putText(frame, deflection_text, (midpoint[0] + 10, midpoint[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 0), 2)
     
     # Show result
     cv2.imshow('Marker Detection', frame)
@@ -198,11 +192,11 @@ while True:
     if key == ord('c'): # Check camera calibration o C press
         cv2.imshow('Original', oldframe) # Orginal frame
         cv2.imshow('Undistorted', frame) # Removed distortion frame
-    if key == ord('p'): # Print X, Y, Mag of deflection in terminal on P press
+    if key == ord('p'): # Print to terminal on P press
         if not selecting_color:
-            print(f"Deflection x: {deflection_x_mm:.2f} mm")
-            print(f"Deflection y: {deflection_y_mm:.2f} mm")
-            print(f"Deflection mag: {deflection_mm:.2f} mm") 
+            print(f"Deflection x: {deflection_x_mm:.2f} mm") # Print x deflection
+            print(f"Deflection y: {deflection_y_mm:.2f} mm") # Print y deflection
+            print(f"Deflection mag: {deflection_mm:.2f} mm") # Print total deflection
         else:
             print("Object was not picked!")        
 
