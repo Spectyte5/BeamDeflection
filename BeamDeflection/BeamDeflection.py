@@ -3,6 +3,7 @@ import numpy as np
 import pickle
 from fenics import *
 import matplotlib.pyplot as plt
+import tkinter as tk
 
 # Define displacement boundary condition
 def displacement_boundary(x, on_boundary):
@@ -57,7 +58,25 @@ def calculate_fem(deflection_mm):
         contour = plot(von_Mises, title='von Mises Stress', cmap='jet')  # Adjust the colormap to resemble MATLAB's default
         plt.colorbar(contour, label='von Mises Stress')
         plt.show()
-        
+
+# Get radius from user
+def get_circle_radius():
+    # Create the Tkinter root window
+    root = tk.Tk()
+    # Hide the root window
+    root.withdraw() 
+    # Create simpledialog window for radius
+    radius = tk.simpledialog.askinteger("Enter Radius", "Enter the radius of the circle [mm]:")
+    # Close the Tkinter root window
+    root.destroy()  
+    # Handle the input
+    if radius is not None:
+        print(f"Radius entered: {radius} mm")
+        return radius
+    else:
+        print("Invalid input or canceled.")
+        return None
+
 # Function to reset color selection
 def reset_color_selection():
     global hsv_lower_bound, hsv_upper_bound, selecting_color, initial_position
@@ -96,7 +115,6 @@ with open("CameraCalibration/calibration.pkl", "rb") as f:
 # Capture video using the camera
 cap = cv2.VideoCapture(0)
 initial_position = None  
-known_width_mm, known_height_mm = 32, 30
 selecting_color = True
 
 # Initialize lower and upper bounds
@@ -141,39 +159,47 @@ while True:
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
 
-            x, y, w, h = cv2.boundingRect(largest_contour)
-            cv2.rectangle(frame, (x, y), (x + w, y + h), color=(255,0,0), thickness=2)
+            # Get the center and radius of the bounding circle
+            (x, y), radius = cv2.minEnclosingCircle(largest_contour)
+            center, radius = (int(x), int(y)), int(radius)
 
-            # Center of the contour
-            cx = x + w // 2
-            cy = y + h // 2
-
-            cv2.circle(frame, (cx, cy), 5, (0, 255, 0), -1)
+            # Draw enclosing circle and initial circle on the frame
+            cv2.circle(frame, center, radius, (255, 0, 0), 2)
+            cv2.circle(frame, initial_position, 5, (0, 255, 0), -1) 
 
             # Set initial position only on first loop
             if initial_position is None:
-                initial_position = (cx, cy)
-                known_width_pixels = w 
-                known_height_pixels = h
+                # Get radius from user:
+                known_radius_mm = get_circle_radius()
+                if known_radius_mm is None: 
+                    known_radius_mm = 20 # default radius of 20mm
+                initial_position = center
+                known_radius_pixels = radius
             else:
-                # Get current position, mark it and then connect to initial with a line
-                current_position = (cx, cy)
-                cv2.circle(frame, initial_position, 5, (255, 255, 0), -1) 
-                cv2.line(frame, initial_position, current_position, (255, 255, 0), 2)
+                # Get current position, mark it
+                current_position = center
+                cv2.circle(frame, current_position, 5, (255, 255, 0), -1) 
 
                 # Get deflection value for x and y in pixels
                 deflection_x_pixels = current_position[0] - initial_position[0]
                 deflection_y_pixels = current_position[1] - initial_position[1]
 
-                # Remap pixel -> mm for x and y, knowing pixel per mm
-                deflection_x_mm = deflection_x_pixels * (known_width_mm / known_width_pixels)
-                deflection_y_mm = deflection_y_pixels * (known_height_mm / known_height_pixels)
+                # Calculate mm per pixel
+                mm_per_pixel = known_radius_mm / known_radius_pixels
+
+                # Remap pixel -> mm for x and y
+                deflection_x_mm = deflection_x_pixels * mm_per_pixel
+                deflection_y_mm = deflection_y_pixels * mm_per_pixel
 
                 # Calculate total deflection
                 deflection_mm = np.sqrt(deflection_x_mm ** 2 + deflection_y_mm ** 2)
 
+                # Draw line between current and initial position
+                cv2.line(frame, initial_position, current_position, (255, 255, 0), 2) 
+
                 # Find midpoint of the line
                 midpoint = ((initial_position[0] + current_position[0]) // 2, (initial_position[1] + current_position[1]) // 2)
+
                 # Put deflection text on the midpoint
                 deflection_text = f"Deflection: {deflection_mm:.2f} mm"
                 cv2.putText(frame, deflection_text, (midpoint[0] + 10, midpoint[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 0), 2)
