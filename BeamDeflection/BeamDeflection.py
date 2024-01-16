@@ -116,6 +116,7 @@ with open("CameraCalibration/calibration.pkl", "rb") as f:
 cap = cv2.VideoCapture(0)
 initial_position = None  
 selecting_color = True
+known_radius_mm = 20 # default radius of 20mm
 
 # Initialize lower and upper bounds
 hsv_lower_bound = np.array([0, 0, 0])
@@ -123,6 +124,8 @@ hsv_upper_bound = np.array([179, 255, 255])
 
 # Set mouse callback
 cv2.namedWindow('Marker Detection')
+# Adjust the initial window position
+cv2.moveWindow('Marker Detection', 200, 140)  
 cv2.setMouseCallback('Marker Detection', select_color)
 
 while True:
@@ -163,22 +166,26 @@ while True:
             (x, y), radius = cv2.minEnclosingCircle(largest_contour)
             center, radius = (int(x), int(y)), int(radius)
 
-            # Draw enclosing circle and initial circle on the frame
+            # Draw enclosing circle
             cv2.circle(frame, center, radius, (255, 0, 0), 2)
-            cv2.circle(frame, initial_position, 5, (0, 255, 0), -1) 
 
             # Set initial position only on first loop
             if initial_position is None:
-                # Get radius from user:
-                known_radius_mm = get_circle_radius()
-                if known_radius_mm is None: 
-                    known_radius_mm = 20 # default radius of 20mm
                 initial_position = center
                 known_radius_pixels = radius
             else:
-                # Get current position, mark it
+                # Get current position
                 current_position = center
-                cv2.circle(frame, current_position, 5, (255, 255, 0), -1) 
+
+                # Draw line between current and initial position
+                cv2.line(frame, initial_position, current_position, (255, 0, 255), 2) 
+
+                # Find midpoint of the line
+                midpoint = ((initial_position[0] + current_position[0]) // 2, (initial_position[1] + current_position[1]) // 2)
+
+                # Draw initial and current position
+                cv2.circle(frame, initial_position, 2, (0, 255, 0), -1) 
+                cv2.circle(frame, current_position, 2, (255, 255, 0), -1)            
 
                 # Get deflection value for x and y in pixels
                 deflection_x_pixels = current_position[0] - initial_position[0]
@@ -194,12 +201,6 @@ while True:
                 # Calculate total deflection
                 deflection_mm = np.sqrt(deflection_x_mm ** 2 + deflection_y_mm ** 2)
 
-                # Draw line between current and initial position
-                cv2.line(frame, initial_position, current_position, (255, 255, 0), 2) 
-
-                # Find midpoint of the line
-                midpoint = ((initial_position[0] + current_position[0]) // 2, (initial_position[1] + current_position[1]) // 2)
-
                 # Put deflection text on the midpoint
                 deflection_text = f"Deflection: {deflection_mm:.2f} mm"
                 cv2.putText(frame, deflection_text, (midpoint[0] + 10, midpoint[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 0), 2)
@@ -210,21 +211,20 @@ while True:
     key = cv2.waitKey(1) & 0xFF  
     if key == ord('q'): # Quit on Q button press
         break
-    if key == ord('f'): # Fem on F button press
+    elif key == ord('f'): # Fem on F button press
         if not selecting_color:
-            calculate_fem(deflection_mm)
+            calculate_fem(deflection_y_mm)
         else:
             print("Object was not picked!")
-    if key == ord('c'): # Check camera calibration o C press
-        cv2.imshow('Original', oldframe) # Orginal frame
-        cv2.imshow('Undistorted', frame) # Removed distortion frame
-    if key == ord('p'): # Print to terminal on P press
+    elif key == ord('p'): # Print to terminal on P press
         if not selecting_color:
             print(f"Deflection x: {deflection_x_mm:.2f} mm") # Print x deflection
             print(f"Deflection y: {deflection_y_mm:.2f} mm") # Print y deflection
             print(f"Deflection mag: {deflection_mm:.2f} mm") # Print total deflection
         else:
-            print("Object was not picked!")        
+            print("Object was not picked!")      
+    elif key == ord('r'): # Get radius value from user on R press
+         known_radius_mm = get_circle_radius()
 
 # Cleanup routine
 cap.release()
