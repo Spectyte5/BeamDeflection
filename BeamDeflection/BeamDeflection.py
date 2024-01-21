@@ -14,51 +14,50 @@ def epsilon(u):
     return sym(grad(u))
 
 def sigma(G, lmbda, u):
-    return lmbda*div(u)*Identity(len(u)) + 2*G*epsilon(u)
+    return lmbda*div(u)*Identity(2) + 2*G*epsilon(u)
 
 def calculate_fem(deflection_mm):
-       # Define the geometry and mesh
-        L = 2.4  # Length of the beam
-        H = 0.03  # Height of the beam
-        W = 0.005 # Width of the beam
-        num_elements = 10  # Number of elements
+    # Define the geometry and mesh (in millimeters)
+    L = 2400.0  # Length of the beam
+    H = 30.0    # Height of the beam
+    num_elements = [20,10]  # Number of elements
 
-        # Create mesh and define function space
-        mesh = BoxMesh(Point(0, 0, 0), Point(L, W, H), num_elements, num_elements, num_elements)
-        V = VectorFunctionSpace(mesh, 'P', 1)
+    # Create mesh and define function space (2D)
+    mesh = RectangleMesh(Point(0, 0), Point(L, H), num_elements[0], num_elements[1])
+    V = VectorFunctionSpace(mesh, 'P', 1)
 
-        bc = DirichletBC(V, Constant((0, 0, 0)), displacement_boundary)
+    bc = DirichletBC(V, Constant((0, 0)), displacement_boundary)
 
-        # Define material properties
-        E = 2400e9  # Young's modulus
-        nu = 0.37   # Poisson's ratio
-        mu = E / (2.0 * (1.0 + nu))
-        lmbda = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
-        G = Constant(mu)
-        lmbda = Constant(lmbda)
+    # Define material properties
+    E = 2400e6  # Young's modulus (in MPa)
+    nu = 0.37   # Poisson's ratio
+    mu = E / (2.0 * (1.0 + nu))
+    lmbda = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
+    G = Constant(mu)
+    lmbda = Constant(lmbda)
 
-        # Define problem
-        u = TrialFunction(V)
-        v = TestFunction(V)
-        displacement = Constant((0, 0, deflection_mm))  # Displacement applied at one end 
-        a = inner(sigma(G, lmbda, u), epsilon(v))*dx
-        L = dot(displacement, v)*ds  # Use ds for surface integration
+    # Define problem
+    u = TrialFunction(V)
+    v = TestFunction(V)
+    displacement = Constant((0, deflection_mm))  # Displacement applied at one end 
+    a = inner(sigma(G, lmbda, u), epsilon(v))*dx
+    L = dot(displacement, v)*ds  # Use ds for surface integration
 
-        # Compute solution
-        u = Function(V)
-        solve(a == L, u, bc)
+    # Compute solution
+    u = Function(V)
+    solve(a == L, u, bc)
 
-        # Compute von Mises stress
-        V = FunctionSpace(mesh, 'P', 1)
-        von_Mises = project(sqrt(3.0 / 2.0 * inner(sigma(G, lmbda, u) - (1. / 3) * tr(sigma(G, lmbda, u)) * Identity(len(u)), sigma(G, lmbda, u) - (1. / 3) * tr(sigma(G, lmbda, u)) * Identity(len(u)))), V)
+    # Compute von Mises stress
+    V = FunctionSpace(mesh, 'P', 1)
+    von_Mises = project(sqrt(3.0 / 2.0 * inner(sigma(G, lmbda, u) - (1. / 3) * tr(sigma(G, lmbda, u)) * Identity(2), sigma(G, lmbda, u) - (1. / 3) * tr(sigma(G, lmbda, u)) * Identity(2))), V)
 
-        # Display von Mises stress with contour plot
-        plt.figure()
-        mngr = plt.get_current_fig_manager()
-        mngr.canvas.manager.window.wm_geometry("+%d+%d" % (200, 200))
-        contour = plot(von_Mises, title='von Mises Stress', cmap='jet')  # Adjust the colormap to resemble MATLAB's default
-        plt.colorbar(contour, label='von Mises Stress')
-        plt.show()
+    # Display von Mises stress with contour plot
+    plt.figure()
+    mngr = plt.get_current_fig_manager()
+    mngr.canvas.manager.window.wm_geometry("+%d+%d" % (200, 200))
+    contour = plot(von_Mises, title='von Mises Stress', cmap='jet')  # Adjust the colormap to resemble MATLAB's default
+    plt.colorbar(contour, label='von Mises Stress')
+    plt.show()
 
 # Open new tk root window
 def open_tk_window():
