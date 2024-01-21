@@ -40,8 +40,7 @@ def calculate_fem(deflection_mm):
         # Define problem
         u = TrialFunction(V)
         v = TestFunction(V)
-        displacement = Constant((0, 0, deflection_mm))  # Displacement applied at one end
-
+        displacement = Constant((0, 0, deflection_mm))  # Displacement applied at one end 
         a = inner(sigma(G, lmbda, u), epsilon(v))*dx
         L = dot(displacement, v)*ds  # Use ds for surface integration
 
@@ -61,10 +60,28 @@ def calculate_fem(deflection_mm):
         plt.colorbar(contour, label='von Mises Stress')
         plt.show()
 
+# Open new tk root window
+def open_tk_window():
+    # Create the Tkinter root window
+    root = tk.Tk()
+    # Update the display and handle events
+    root.update_idletasks()
+    # Center root window
+    root.tk.eval(f'tk::PlaceWindow {root._w} center')
+    # Return root window
+    return root
+    
+    
 # Get radius from user
 def get_circle_radius():
+    # Open window
+    root = open_tk_window()
+    # Hide the root window
+    root.withdraw()
     # Create simpledialog window for radius
     radius = tk.simpledialog.askinteger("Enter Radius", "Enter the radius of the circle [mm]:", parent=root) 
+    # Destroy window
+    root.destroy()
     # Handle the input
     if radius is not None:
         print(f"Radius entered: {radius} mm")
@@ -77,55 +94,61 @@ def get_circle_radius():
 def choose_drawing_colors():
     # BGR colors
     preset_colors = {
-        'Blue': (255, 0, 0),   
-        'Green': (0, 255, 0),   
-        'Red': (0, 0, 255),     
-        'Yellow': (0, 255, 255),  
-        'Purple': (128, 0, 128),  
-        'Orange': (0, 165, 255),  
+        'Blue': (255, 0, 0),
+        'Green': (0, 255, 0),
+        'Red': (0, 0, 255),
+        'Yellow': (0, 255, 255),
+        'Purple': (128, 0, 128),
+        'Orange': (0, 165, 255),
     }
 
     # Get keys from color options dict
     preset_vars = list(color_vars.keys())
 
-    # Create window
-    color_selection_window = tk.Toplevel()
-    color_selection_window.title("Choose Color and Variable")
-
-    # Center window
-    color_selection_window.update_idletasks()
-    color_selection_window.tk.eval(f'tk::PlaceWindow {color_selection_window._w} center')
+    # Open root window
+    root = open_tk_window()
+    root.title("Choose Color and Variable")
 
     # Set default color and var
-    selected_color,  selected_var = tk.StringVar(), tk.StringVar()
-    selected_color.set("Blue")  
-    selected_var.set("Enclosing Circle")  
+    selected_color, selected_var = tk.StringVar(), tk.StringVar()
+    selected_color.set("Blue")
+    selected_var.set("Enclosing Circle")
 
     # Option menu for colors
-    color_menu = tk.OptionMenu(color_selection_window, selected_color, *preset_colors.keys())
+    color_menu = tk.OptionMenu(root, selected_color, *preset_colors.keys())
     color_menu.pack()
 
     # Option menu for vars
-    var_menu = tk.OptionMenu(color_selection_window, selected_var, *preset_vars)
+    var_menu = tk.OptionMenu(root, selected_var, *preset_vars)
     var_menu.pack()
 
     # Submit button
-    ok_button = tk.Button(color_selection_window, text="OK", command=color_selection_window.destroy)
+    ok_button = tk.Button(root, text="OK", command=root.destroy)
     ok_button.pack()
 
-    # Make the color selection window modal
-    color_selection_window.grab_set()  
+    # Make the root window modal
+    root.grab_set()
 
     # Continue updating while the window exists
-    while color_selection_window.winfo_exists():  
-        color_selection_window.update()
+    root.mainloop()
 
     return preset_colors.get(selected_color.get()), selected_var.get()
 
 # Function to set line/text width 
 def choose_drawing_width():
+    root = open_tk_window()
+    # Hide the root window
+    root.withdraw()
     width = tk.simpledialog.askinteger("Drawing Width", "Enter the drawing width:", parent=root)
-    return width if 0 < width < 10 else 2
+    # Destroy window
+    root.destroy()
+    # Handle the input
+    if width is not None:
+        print(f"Width entered: {width} mm")
+        return width if 0 < width < 10 else 2
+    else:
+        print("Invalid input or canceled.")
+        return None
 
 # Function to reset color selection
 def reset_color_selection():
@@ -201,16 +224,7 @@ cap = cv2.VideoCapture(0)
 initial_position = None  
 selecting_color = True
 show_help, show_deflection = False, False
-known_radius_mm = 20 # default radius of 20mm
-
-# Create the Tkinter root window
-root = tk.Tk()
-# Update the display and handle events
-root.update_idletasks()
-# Center root window
-root.tk.eval(f'tk::PlaceWindow {root._w} center')
-# Hide the root window
-root.withdraw() 
+known_radius_mm = 20 # default radius of 20mm 
 
 # Default colors for lines, text and their width:
 color_vars = {  'Enclosing Circle' : (255, 0, 0),
@@ -343,7 +357,6 @@ while True:
     elif key == ord('h'): # Show help on H press
         show_help = not show_help  # Toggle the flag
 
-# Cleanup routine
-root.destroy() 
+# Cleanup routine 
 cap.release()
 cv2.destroyAllWindows()
