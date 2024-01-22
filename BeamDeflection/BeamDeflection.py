@@ -18,9 +18,9 @@ def sigma(G, lmbda, u):
 
 def calculate_fem(deflection_mm):
     # Define the geometry and mesh (in millimeters)
-    L = 2400.0  # Length of the beam
+    L = 240.0  # Length of the beam
     H = 30.0    # Height of the beam
-    num_elements = [20,10]  # Number of elements
+    num_elements = [30,10]  # Number of elements
 
     # Create mesh and define function space (2D)
     mesh = RectangleMesh(Point(0, 0), Point(L, H), num_elements[0], num_elements[1])
@@ -29,8 +29,8 @@ def calculate_fem(deflection_mm):
     bc = DirichletBC(V, Constant((0, 0)), displacement_boundary)
 
     # Define material properties
-    E = 2400e6  # Young's modulus (in MPa)
-    nu = 0.37   # Poisson's ratio
+    E = 3500e6  # Young's modulus (in MPa)
+    nu = 0.35   # Poisson's ratio
     mu = E / (2.0 * (1.0 + nu))
     lmbda = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
     G = Constant(mu)
