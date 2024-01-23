@@ -4,6 +4,7 @@ import pickle
 from fenics import *
 import matplotlib.pyplot as plt
 import tkinter as tk
+from tkinter import ttk
 
 # Define displacement boundary condition
 def displacement_boundary(x, on_boundary):
@@ -16,11 +17,7 @@ def epsilon(u):
 def sigma(G, lmbda, u):
     return lmbda*div(u)*Identity(2) + 2*G*epsilon(u)
 
-def calculate_fem(deflection_mm):
-    # Define the geometry and mesh (in millimeters)
-    L = 240.0  # Length of the beam
-    H = 30.0    # Height of the beam
-    num_elements = [30,10]  # Number of elements
+def calculate_fem(deflection_mm, L, H, num_elements, E, nu):
 
     # Create mesh and define function space (2D)
     mesh = RectangleMesh(Point(0, 0), Point(L, H), num_elements[0], num_elements[1])
@@ -29,8 +26,6 @@ def calculate_fem(deflection_mm):
     bc = DirichletBC(V, Constant((0, 0)), displacement_boundary)
 
     # Define material properties
-    E = 3500e6  # Young's modulus (in MPa)
-    nu = 0.35   # Poisson's ratio
     mu = E / (2.0 * (1.0 + nu))
     lmbda = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
     G = Constant(mu)
@@ -54,7 +49,7 @@ def calculate_fem(deflection_mm):
     # Display von Mises stress with contour plot
     plt.figure()
     mngr = plt.get_current_fig_manager()
-    mngr.canvas.manager.window.wm_geometry("+%d+%d" % (200, 200))
+    mngr.canvas.manager.window.wm_geometry("+%d+%d" % (190, 180))
     contour = plot(von_Mises, title='von Mises Stress', cmap='jet')  # Adjust the colormap to resemble MATLAB's default
     plt.colorbar(contour, label='von Mises Stress')
     plt.show()
@@ -69,7 +64,56 @@ def open_tk_window():
     root.tk.eval(f'tk::PlaceWindow {root._w} center')
     # Return root window
     return root
-    
+
+def set_fem_parameters():
+    # Open root window
+    root = open_tk_window()
+    root.title("Beam Parameters")
+
+    # Initialize variables
+    L, H, num_elements, E, nu = 0, 0, [0, 0], 0, 0
+
+    # On submit get result and destroy window
+    def on_submit():
+        nonlocal L, H, num_elements, E, nu
+        L = float(length_entry.get())
+        H = float(height_entry.get())
+        num_elements = [int(num_elements_x_entry.get()), int(num_elements_y_entry.get())]
+        E = float(youngs_modulus_entry.get())
+        nu = float(poissons_ratio_entry.get())
+        root.destroy()
+
+    # Labels for fields
+    ttk.Label(root, text="Length of the beam (L):").grid(row=0, column=0, padx=10, pady=5)
+    ttk.Label(root, text="Height of the beam (H):").grid(row=1, column=0, padx=10, pady=5)
+    ttk.Label(root, text="Number of elements (X):").grid(row=2, column=0, padx=10, pady=5)
+    ttk.Label(root, text="Number of elements (Y):").grid(row=3, column=0, padx=10, pady=5)
+    ttk.Label(root, text="Young's modulus (E):").grid(row=4, column=0, padx=10, pady=5)
+    ttk.Label(root, text="Poisson's ratio (nu):").grid(row=5, column=0, padx=10, pady=5)
+
+    # Entry widgets
+    length_entry = ttk.Entry(root)
+    height_entry = ttk.Entry(root)
+    num_elements_x_entry = ttk.Entry(root)
+    num_elements_y_entry = ttk.Entry(root)
+    youngs_modulus_entry = ttk.Entry(root)
+    poissons_ratio_entry = ttk.Entry(root)
+
+    # Set the layout of entry widgets on the grid for user input
+    length_entry.grid(row=0, column=1, padx=10, pady=5)
+    height_entry.grid(row=1, column=1, padx=10, pady=5)
+    num_elements_x_entry.grid(row=2, column=1, padx=10, pady=5)
+    num_elements_y_entry.grid(row=3, column=1, padx=10, pady=5)
+    youngs_modulus_entry.grid(row=4, column=1, padx=10, pady=5)
+    poissons_ratio_entry.grid(row=5, column=1, padx=10, pady=5)
+
+    # Submit Button
+    ttk.Button(root, text="Submit", command=on_submit).grid(row=6, column=0, columnspan=2, pady=10)
+
+    # Continue updating while the window exists
+    root.mainloop()
+
+    return L, H, num_elements, E, nu  
     
 # Get radius from user
 def get_circle_radius():
@@ -200,6 +244,7 @@ def display_help_on_frame(frame, show=False):
         Press 'r' to get radius value.
         Press 'c' to set color values.
         Press 'w' to set width value.
+        Press 't' to reset fem parameters 
         """
     else:
         help_text = "Press 'h' to display help."
@@ -224,6 +269,14 @@ initial_position = None
 selecting_color = True
 show_help, show_deflection = False, False
 known_radius_mm = 20 # default radius of 20mm 
+
+# Fem default:
+L=240.0
+H=30.0
+num_elements=[30,10]
+E=3500e6
+nu=0.35
+parameters_set = True
 
 # Default colors for lines, text and their width:
 color_vars = {  'Enclosing Circle' : (255, 0, 0),
@@ -335,7 +388,11 @@ while True:
         break
     elif key == ord('f'): # Fem on F button press
         if not selecting_color:
-            calculate_fem(deflection_y_mm)
+            if not parameters_set:
+                L, H, num_elements, E, nu = set_fem_parameters()
+                print(f"Set {L=}, {H=}, {num_elements=}, {E=}, {nu=}")
+                parameters_set = True
+            calculate_fem(deflection_y_mm, L, H, num_elements, E, nu)
         else:
             print("Object was not picked!")
     elif key == ord('p'): # Print deflection components on P press
@@ -355,6 +412,10 @@ while True:
         width = choose_drawing_width()
     elif key == ord('h'): # Show help on H press
         show_help = not show_help  # Toggle the flag
+    elif key == ord('t'): # Reset fem paramters on T press
+        parameters_set = not parameters_set  
+        print(f'Fem params reset')
+        
 
 # Cleanup routine 
 cap.release()
