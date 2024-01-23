@@ -272,7 +272,7 @@ known_radius_mm = 20 # default radius of 20mm
 
 # Fem default:
 L=240.0
-H=30.0
+H=5.0
 num_elements=[30,10]
 E=3500e6
 nu=0.35
